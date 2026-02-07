@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 from ym_bridge.controller import BridgeController
@@ -13,6 +14,8 @@ class BridgeIpcServer:
         self._controller = controller
         self._socket_path = Path(socket_path)
         self._server: asyncio.AbstractServer | None = None
+        self._feedback_cooldown_seconds = 0.8
+        self._last_feedback_at = 0.0
 
     async def start(self) -> None:
         self._socket_path.unlink(missing_ok=True)
@@ -50,26 +53,42 @@ class BridgeIpcServer:
             return {"ok": True, "state": self._state_payload()}
         if action == "play":
             await self._controller.play()
-            return {"ok": True}
+            return {"ok": True, "state": self._state_payload()}
         if action == "pause":
             await self._controller.pause()
-            return {"ok": True}
+            return {"ok": True, "state": self._state_payload()}
         if action == "play_pause":
             await self._controller.play_pause()
-            return {"ok": True}
+            await self._controller.refresh_state()
+            return {"ok": True, "state": self._state_payload()}
         if action == "next":
             await self._controller.next()
-            return {"ok": True}
+            await self._controller.refresh_state()
+            return {"ok": True, "state": self._state_payload()}
         if action == "previous":
             await self._controller.previous()
-            return {"ok": True}
+            await self._controller.refresh_state()
+            return {"ok": True, "state": self._state_payload()}
         if action == "like":
+            if self._feedback_rate_limited():
+                return {"ok": True, "skipped": "rate_limited", "state": self._state_payload()}
             await self._controller.like_current()
-            return {"ok": True}
+            await self._controller.refresh_state()
+            return {"ok": True, "state": self._state_payload()}
         if action == "dislike":
+            if self._feedback_rate_limited():
+                return {"ok": True, "skipped": "rate_limited", "state": self._state_payload()}
             await self._controller.dislike_current()
-            return {"ok": True}
+            await self._controller.refresh_state()
+            return {"ok": True, "state": self._state_payload()}
         return {"ok": False, "error": f"unknown action: {action}"}
+
+    def _feedback_rate_limited(self) -> bool:
+        now = time.monotonic()
+        if now - self._last_feedback_at < self._feedback_cooldown_seconds:
+            return True
+        self._last_feedback_at = now
+        return False
 
     def _state_payload(self) -> dict[str, Any]:
         state = self._controller.state

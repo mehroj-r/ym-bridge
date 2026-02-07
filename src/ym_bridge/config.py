@@ -16,6 +16,8 @@ class AppConfig:
     mpris_name: str = "ymbridge"
     control_socket_path: str = "/tmp/ym-bridge.sock"
     autoplay_on_start: bool = False
+    waybar_max_length: int = 34
+    waybar_scroll: bool = True
     user_agent: str = "ym-bridge/0.1"
     base_url: str = "https://api.music.yandex.net"
     oauth_token: str = ""
@@ -68,6 +70,8 @@ def load_config(path: Path | None = None) -> AppConfig:
         mpris_name=str(app.get("mpris_name", "ymbridge")),
         control_socket_path=str(app.get("control_socket_path", "/tmp/ym-bridge.sock")),
         autoplay_on_start=_as_bool(app.get("autoplay_on_start", False)),
+        waybar_max_length=max(10, int(app.get("waybar_max_length", 34))),
+        waybar_scroll=_as_bool(app.get("waybar_scroll", True)),
         user_agent=str(app.get("user_agent", "ym-bridge/0.1")),
         base_url=str(yandex.get("base_url", "https://api.music.yandex.net")),
         oauth_token=oauth_token,

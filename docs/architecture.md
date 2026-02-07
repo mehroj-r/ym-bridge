@@ -46,6 +46,11 @@ Response:
 {"ok": true, "state": {...}}
 ```
 
+Notes:
+
+- Like/dislike actions are rate-limited in daemon IPC to avoid accidental request spam from repeated UI events.
+- Action responses include refreshed state so UI integrations can reflect like/dislike updates quickly.
+
 or
 
 ```json

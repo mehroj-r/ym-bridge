@@ -3,6 +3,8 @@ poll_interval_seconds = 2.0
 mpris_name = "ymbridge"
 control_socket_path = "/tmp/ym-bridge.sock"
 autoplay_on_start = false
+waybar_max_length = 34
+waybar_scroll = true
 user_agent = "ym-bridge/0.1"
 
 [yandex]

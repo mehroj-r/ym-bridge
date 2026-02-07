@@ -72,6 +72,12 @@ class BridgeController:
     async def dislike_current(self) -> None:
         await self._provider.dislike_current()
 
+    async def refresh_state(self) -> PlayerState:
+        updated = await self._provider.fetch_state()
+        self._state = updated
+        await self._emit_state(updated)
+        return updated
+
     async def _sync_loop(self) -> None:
         while not self._stopped.is_set():
             try:

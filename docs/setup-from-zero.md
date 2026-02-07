@@ -13,6 +13,12 @@ uv sync
 uv tool install --from . ym-bridge
 ```
 
+During active development, use editable install instead:
+
+```bash
+uv tool install --from . --editable --force ym-bridge
+```
+
 ## 2) Create Config
 
 ```bash
@@ -31,6 +37,14 @@ If you do not want auto playback after service start, keep:
 ```toml
 [app]
 autoplay_on_start = false
+```
+
+Waybar text behavior can be tuned:
+
+```toml
+[app]
+waybar_max_length = 34
+waybar_scroll = true
 ```
 
 ## 3) Verify Locally

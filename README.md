@@ -45,6 +45,12 @@ Install CLI binary to `~/.local/bin` (recommended for systemd user service):
 uv tool install --from . ym-bridge
 ```
 
+For local development (so code changes apply without reinstall):
+
+```bash
+uv tool install --from . --editable --force ym-bridge
+```
+
 or:
 
 ```bash
@@ -61,6 +67,8 @@ poll_interval_seconds = 2.0
 mpris_name = "ymbridge"
 control_socket_path = "/tmp/ym-bridge.sock"
 autoplay_on_start = false
+waybar_max_length = 34
+waybar_scroll = true
 user_agent = "ym-bridge/0.1"
 
 [yandex]
@@ -135,10 +143,10 @@ Custom control module:
   "return-type": "json",
   "interval": 1,
   "on-click": "ym-bridge ctl play_pause",
-  "on-click-right": "ym-bridge ctl next",
-  "on-click-middle": "ym-bridge ctl previous",
-  "on-scroll-up": "ym-bridge ctl like",
-  "on-scroll-down": "ym-bridge ctl dislike"
+  "on-click-right": "ym-bridge ctl like",
+  "on-click-middle": "ym-bridge ctl dislike",
+  "on-scroll-up": "ym-bridge ctl next",
+  "on-scroll-down": "ym-bridge ctl previous"
 }
 ```
 
@@ -173,6 +181,7 @@ No custom integration is required. SwayNC reads MPRIS sessions automatically.
 
 - `YM offline` in Waybar custom module: daemon is not running or socket path differs from config.
 - `status=203/EXEC` in systemd: `ym-bridge` is not on service PATH. Install with `uv tool install --from . ym-bridge` and restart service.
+- service uses old code after changes: reinstall tool from current repo (`uv tool install --from . --editable --force ym-bridge`) and restart service.
 - no audio: verify `mpv` is installed and available in `PATH`.
 - no metadata: check `journalctl --user -u ym-bridge.service -f` and run `ym-bridge account`.
 - auth failures: refresh OAuth token and update config/env.

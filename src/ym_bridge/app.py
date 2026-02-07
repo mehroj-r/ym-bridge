@@ -4,7 +4,9 @@ import argparse
 import asyncio
 import json
 import logging
+from pathlib import Path
 import shutil
+import time
 
 from ym_bridge.config import AppConfig, load_config
 from ym_bridge.controller import BridgeController
@@ -166,16 +168,67 @@ async def run_waybar_command(config: AppConfig) -> None:
     liked_icon = " ♥" if liked else ""
     artist = str(track.get("artist", "")).strip()
     title = str(track.get("title", "")).strip() or "No track"
-    text = f"{icon} {artist} - {title}{liked_icon}" if artist else f"{icon} {title}{liked_icon}"
+    full_text = (
+        f"{icon} {artist} - {title}{liked_icon}" if artist else f"{icon} {title}{liked_icon}"
+    )
+    text = _compact_waybar_text(
+        full_text, max_length=config.waybar_max_length, scroll=config.waybar_scroll
+    )
     print(
         json.dumps(
             {
                 "text": text,
                 "class": [status.lower(), "liked" if liked else "unliked"],
-                "tooltip": f"{artist}\n{title}" if artist else title,
+                "tooltip": (
+                    f"{artist}\n{title}\n{'Liked' if liked else 'Not liked'}"
+                    if artist
+                    else f"{title}\n{'Liked' if liked else 'Not liked'}"
+                ),
             }
         )
     )
+
+
+def _compact_waybar_text(text: str, *, max_length: int, scroll: bool) -> str:
+    if len(text) <= max_length:
+        return text
+    if not scroll:
+        return text[: max_length - 1] + "…"
+
+    spacer = "   "
+    marquee = text + spacer
+    width = max(10, max_length)
+    start = _next_waybar_cursor(text, len(marquee))
+    looped = marquee + marquee
+    return looped[start : start + width]
+
+
+def _next_waybar_cursor(key: str, span: int) -> int:
+    state_file = Path("/tmp/ym-bridge-waybar-state.json")
+    previous_key = ""
+    cursor = 0
+    if state_file.exists():
+        try:
+            data = json.loads(state_file.read_text(encoding="utf-8"))
+            previous_key = str(data.get("key", ""))
+            cursor = int(data.get("cursor", 0))
+        except Exception:  # noqa: BLE001
+            previous_key = ""
+            cursor = 0
+
+    if previous_key == key:
+        cursor = (cursor + 1) % max(span, 1)
+    else:
+        cursor = 0
+
+    try:
+        state_file.write_text(
+            json.dumps({"key": key, "cursor": cursor, "updated_at": int(time.time())}),
+            encoding="utf-8",
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return cursor
 
 
 def run_doctor(config: AppConfig) -> None:
@@ -184,6 +237,8 @@ def run_doctor(config: AppConfig) -> None:
         "oauth_token_present": bool(config.oauth_token),
         "control_socket_path": config.control_socket_path,
         "autoplay_on_start": config.autoplay_on_start,
+        "waybar_max_length": config.waybar_max_length,
+        "waybar_scroll": config.waybar_scroll,
         "mpris_name": config.mpris_name,
         "base_url": config.base_url,
     }
