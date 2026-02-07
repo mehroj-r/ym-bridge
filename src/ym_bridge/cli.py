@@ -14,6 +14,30 @@ def parse_args() -> argparse.Namespace:
     subparsers.add_parser("recon", help="Probe candidate Yandex API endpoints")
     subparsers.add_parser("doctor", help="Check runtime dependencies and config")
     subparsers.add_parser("account", help="Fetch account/about using current config")
+    vibe = subparsers.add_parser("vibe", help="Set vibe seeds dynamically")
+    vibe.add_argument("--activity", help="Activity seed tag, e.g. wake-up")
+    vibe.add_argument(
+        "--diversity",
+        choices=["favorite", "discover", "popular", "default"],
+        help="Character profile",
+    )
+    vibe.add_argument(
+        "--mood",
+        choices=["active", "fun", "calm", "sad", "all"],
+        help="Mood preset",
+    )
+    vibe.add_argument(
+        "--language",
+        choices=["russian", "not-russian", "any", "without-words"],
+        help="Language filter",
+    )
+    vibe.add_argument(
+        "--seed",
+        action="append",
+        default=[],
+        help="Additional raw seed; can be repeated",
+    )
+    subparsers.add_parser("vibe-tui", help="Interactive vibe selector")
     subparsers.add_parser("like", help="Like currently selected track")
     subparsers.add_parser("dislike", help="Dislike currently selected track")
 

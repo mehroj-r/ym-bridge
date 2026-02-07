@@ -69,6 +69,7 @@ class YandexMusicProvider(MusicProvider):
 
         self._http = httpx.AsyncClient(base_url=config.base_url, headers=headers, timeout=20)
         self._player = MpvPlayer()
+        self._rotor_seeds: list[str] = list(config.rotor_seeds)
         self._sequence: list[dict[str, Any]] = []
         self._index = 0
         self._session_id = ""
@@ -173,6 +174,24 @@ class YandexMusicProvider(MusicProvider):
         await self._player.close()
         await self._http.aclose()
 
+    async def set_rotor_seeds(self, seeds: tuple[str, ...]) -> None:
+        normalized = [seed.strip() for seed in seeds if seed.strip()]
+        if not normalized:
+            raise ReverseEngineeringRequiredError("At least one rotor seed is required")
+        self._rotor_seeds = normalized
+        await self._player.stop()
+        self._sequence = []
+        self._index = 0
+        self._session_id = ""
+        self._session_batch_id = ""
+        self._feedback_from = ""
+        self._play_id = ""
+        self._play_start_timestamp = ""
+        self._reported_finish_play_id = ""
+
+    def get_rotor_seeds(self) -> tuple[str, ...]:
+        return tuple(self._rotor_seeds)
+
     async def like_current(self) -> None:
         if not self._sequence:
             await self._ensure_sequence()
@@ -262,7 +281,7 @@ class YandexMusicProvider(MusicProvider):
             "includeTracksInResponse": True,
             "includeWaveModel": True,
             "interactive": True,
-            "seeds": list(self._config.rotor_seeds),
+            "seeds": list(self._rotor_seeds),
         }
         data = await self._request_json(
             "POST", self._config.endpoint_rotor_session_new, json=payload

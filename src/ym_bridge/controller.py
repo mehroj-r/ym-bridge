@@ -78,6 +78,12 @@ class BridgeController:
         await self._emit_state(updated)
         return updated
 
+    async def set_rotor_seeds(self, seeds: tuple[str, ...]) -> None:
+        await self._provider.set_rotor_seeds(seeds)
+
+    def get_rotor_seeds(self) -> tuple[str, ...]:
+        return self._provider.get_rotor_seeds()
+
     async def _sync_loop(self) -> None:
         while not self._stopped.is_set():
             try:

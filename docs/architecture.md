@@ -40,6 +40,13 @@ Request:
 {"action": "status|play|pause|play_pause|next|previous|like|dislike"}
 ```
 
+Vibe control requests:
+
+```json
+{"action": "get_vibe"}
+{"action": "set_vibe", "seeds": ["activity:wake-up", "settingDiversity:discover"]}
+```
+
 Response:
 
 ```json

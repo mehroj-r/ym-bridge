@@ -18,16 +18,6 @@ device_header = ""
 rotor_seeds = ["user:onyourwave", "settingDiversity:discover"]
 
 [yandex.endpoints]
-state = ""
-play = ""
-pause = ""
-play_pause = ""
-stop = ""
-next = ""
-previous = ""
-seek = ""
-set_position = ""
-volume = ""
 account_about = "/account/about"
 rotor_session_new = "/rotor/session/new"
 rotor_session_tracks = "/rotor/session/{session_id}/tracks"

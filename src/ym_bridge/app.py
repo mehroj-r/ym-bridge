@@ -15,6 +15,30 @@ from ym_bridge.mpris import BridgeMprisService
 from ym_bridge.yandex import YandexClientConfig, YandexMusicProvider, run_recon
 
 
+ACTIVITY_MAP = {
+    "wake-up": "activity:wake-up",
+    "road-trip": "activity:road-trip",
+    "work-background": "activity:work-background",
+    "workout": "activity:workout",
+    "fall-asleep": "activity:fall-asleep",
+}
+
+
+def _build_vibe_seeds(args: argparse.Namespace) -> list[str]:
+    seeds: list[str] = []
+    if args.activity:
+        seeds.append(ACTIVITY_MAP.get(args.activity, f"activity:{args.activity}"))
+    if args.diversity:
+        seeds.append(f"settingDiversity:{args.diversity}")
+    if args.mood:
+        seeds.append(f"settingMoodEnergy:{args.mood}")
+    if args.language:
+        seeds.append(f"settingLanguage:{args.language}")
+    if args.seed:
+        seeds.extend(str(seed) for seed in args.seed)
+    return seeds
+
+
 def build_client_config(config: AppConfig) -> YandexClientConfig:
     return YandexClientConfig(
         base_url=config.base_url,
@@ -146,6 +170,65 @@ async def run_ctl_command(config: AppConfig, action: str) -> None:
     print(json.dumps(response, indent=2))
 
 
+async def run_vibe_command(config: AppConfig, args: argparse.Namespace) -> None:
+    seeds = _build_vibe_seeds(args)
+    if not seeds:
+        current = await send_ipc(config.control_socket_path, "get_vibe")
+        print(json.dumps(current, indent=2))
+        return
+    response = await send_ipc(config.control_socket_path, "set_vibe", seeds=seeds)
+    if not response.get("ok", False):
+        raise SystemExit(f"vibe command failed: {response.get('error', 'unknown error')}")
+    print(json.dumps(response, indent=2))
+
+
+async def run_vibe_tui(config: AppConfig) -> None:
+    print("ym-bridge vibe TUI")
+    print("Press Enter to keep a field unchanged. q to cancel.")
+
+    current = await send_ipc(config.control_socket_path, "get_vibe")
+    if not current.get("ok", False):
+        raise SystemExit(f"vibe-tui failed: {current.get('error', 'daemon not running')}")
+    print(f"Current seeds: {', '.join(current.get('seeds', []))}")
+
+    activity = input("Activity [wake-up|road-trip|work-background|workout|fall-asleep]: ").strip()
+    if activity.lower() == "q":
+        return
+    diversity = input("Character [favorite|discover|popular|default]: ").strip()
+    if diversity.lower() == "q":
+        return
+    mood = input("Mood [active|fun|calm|sad|all]: ").strip()
+    if mood.lower() == "q":
+        return
+    language = input("Language [russian|not-russian|any|without-words]: ").strip()
+    if language.lower() == "q":
+        return
+    extras = input("Extra seeds (comma-separated, optional): ").strip()
+    if extras.lower() == "q":
+        return
+
+    seeds: list[str] = []
+    if activity:
+        seeds.append(ACTIVITY_MAP.get(activity, f"activity:{activity}"))
+    if diversity:
+        seeds.append(f"settingDiversity:{diversity}")
+    if mood:
+        seeds.append(f"settingMoodEnergy:{mood}")
+    if language:
+        seeds.append(f"settingLanguage:{language}")
+    if extras:
+        seeds.extend(part.strip() for part in extras.split(",") if part.strip())
+
+    if not seeds:
+        print("No changes requested.")
+        return
+
+    response = await send_ipc(config.control_socket_path, "set_vibe", seeds=seeds)
+    if not response.get("ok", False):
+        raise SystemExit(f"vibe-tui failed: {response.get('error', 'unknown error')}")
+    print("Updated seeds:", ", ".join(response.get("seeds", [])))
+
+
 async def run_waybar_command(config: AppConfig) -> None:
     response = await send_ipc(config.control_socket_path, "status")
     if not response.get("ok", False):
@@ -162,6 +245,7 @@ async def run_waybar_command(config: AppConfig) -> None:
 
     state = response.get("state", {})
     track = state.get("track", {})
+    vibe = state.get("vibe", {})
     status = str(state.get("status", "Stopped"))
     icon = {"Playing": "▶", "Paused": "⏸", "Stopped": "■"}.get(status, "■")
     liked = bool(track.get("liked", False))
@@ -174,16 +258,21 @@ async def run_waybar_command(config: AppConfig) -> None:
     text = _compact_waybar_text(
         full_text, max_length=config.waybar_max_length, scroll=config.waybar_scroll
     )
+    seeds = vibe.get("seeds", [])
+    vibe_line = ", ".join(str(seed) for seed in seeds) if isinstance(seeds, list) else ""
+    tooltip = (
+        f"{artist}\n{title}\n{'Liked' if liked else 'Not liked'}"
+        if artist
+        else f"{title}\n{'Liked' if liked else 'Not liked'}"
+    )
+    if vibe_line:
+        tooltip += f"\nVibe: {vibe_line}"
     print(
         json.dumps(
             {
                 "text": text,
                 "class": [status.lower(), "liked" if liked else "unliked"],
-                "tooltip": (
-                    f"{artist}\n{title}\n{'Liked' if liked else 'Not liked'}"
-                    if artist
-                    else f"{title}\n{'Liked' if liked else 'Not liked'}"
-                ),
+                "tooltip": tooltip,
             }
         )
     )
@@ -260,6 +349,12 @@ async def run(args: argparse.Namespace) -> None:
         return
     if command == "account":
         await run_account_command(config)
+        return
+    if command == "vibe":
+        await run_vibe_command(config, args)
+        return
+    if command == "vibe-tui":
+        await run_vibe_tui(config)
         return
     if command == "like":
         await _run_track_action(config, "like")

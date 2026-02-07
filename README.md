@@ -106,9 +106,18 @@ export YM_DEVICE_ID="..."
 - `ym-bridge recon` - probe useful endpoints
 - `ym-bridge doctor` - local readiness checks
 - `ym-bridge account` - verify account/auth
+- `ym-bridge vibe ...` - apply vibe seeds dynamically
+- `ym-bridge vibe-tui` - interactive vibe selector
 - `ym-bridge like` / `ym-bridge dislike` - direct track action
 - `ym-bridge ctl <action>` - daemon control over IPC
 - `ym-bridge waybar` - JSON output for custom Waybar module
+
+Examples:
+
+```bash
+ym-bridge vibe --activity wake-up --diversity discover --mood calm --language any
+ym-bridge vibe-tui
+```
 
 ## Validate Native MPRIS
 

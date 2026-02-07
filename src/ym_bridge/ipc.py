@@ -51,6 +51,20 @@ class BridgeIpcServer:
         action = str(request.get("action", "")).strip()
         if action == "status":
             return {"ok": True, "state": self._state_payload()}
+        if action == "get_vibe":
+            return {"ok": True, "seeds": list(self._controller.get_rotor_seeds())}
+        if action == "set_vibe":
+            raw_seeds = request.get("seeds", [])
+            if not isinstance(raw_seeds, list):
+                return {"ok": False, "error": "seeds must be a list"}
+            seeds = tuple(str(seed) for seed in raw_seeds)
+            await self._controller.set_rotor_seeds(seeds)
+            await self._controller.refresh_state()
+            return {
+                "ok": True,
+                "seeds": list(self._controller.get_rotor_seeds()),
+                "state": self._state_payload(),
+            }
         if action == "play":
             await self._controller.play()
             return {"ok": True, "state": self._state_payload()}
@@ -96,6 +110,9 @@ class BridgeIpcServer:
             "status": state.status.value,
             "position_us": state.position_us,
             "volume": state.volume,
+            "vibe": {
+                "seeds": list(self._controller.get_rotor_seeds()),
+            },
             "track": {
                 "id": state.track.track_id,
                 "title": state.track.title,
@@ -106,14 +123,15 @@ class BridgeIpcServer:
         }
 
 
-async def send_ipc(socket_path: str, action: str) -> dict[str, Any]:
+async def send_ipc(socket_path: str, action: str, **payload: Any) -> dict[str, Any]:
     try:
         reader, writer = await asyncio.open_unix_connection(socket_path)
     except FileNotFoundError:
         return {"ok": False, "error": "daemon socket not found"}
     except OSError as exc:
         return {"ok": False, "error": str(exc)}
-    writer.write((json.dumps({"action": action}) + "\n").encode("utf-8"))
+    request = {"action": action, **payload}
+    writer.write((json.dumps(request) + "\n").encode("utf-8"))
     await writer.drain()
     line = await reader.readline()
     writer.close()
