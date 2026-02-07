@@ -1,0 +1,37 @@
+[app]
+poll_interval_seconds = 2.0
+mpris_name = "ymbridge"
+control_socket_path = "/tmp/ym-bridge.sock"
+autoplay_on_start = false
+user_agent = "ym-bridge/0.1"
+
+[yandex]
+base_url = "https://api.music.yandex.net"
+oauth_token = ""
+device_id = ""
+accept_language = "en"
+music_client = "YandexMusicAndroid/24026072"
+content_type = "adult"
+device_header = ""
+rotor_seeds = ["user:onyourwave", "settingDiversity:discover"]
+
+[yandex.endpoints]
+state = ""
+play = ""
+pause = ""
+play_pause = ""
+stop = ""
+next = ""
+previous = ""
+seek = ""
+set_position = ""
+volume = ""
+account_about = "/account/about"
+rotor_session_new = "/rotor/session/new"
+rotor_session_tracks = "/rotor/session/{session_id}/tracks"
+likes_tracks_add = "/users/{user_id}/likes/tracks/actions/add"
+likes_tracks_remove = "/users/{user_id}/likes/tracks/actions/remove"
+plays = "/plays"
+
+[recon]
+output_dir = "./artifacts/recon"

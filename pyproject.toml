@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ym-bridge"
+version = "0.1.0"
+description = "Yandex Music bridge daemon for Linux media controls"
+requires-python = ">=3.14"
+dependencies = [
+    "dbus-next>=0.2.3",
+    "httpx>=0.28.1",
+]
+
+[project.scripts]
+ym-bridge = "ym_bridge.__main__:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ym_bridge"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint.per-file-ignores]
+"src/ym_bridge/mpris.py" = ["F722", "F821"]
