@@ -14,7 +14,6 @@ from ym_bridge.models import PlaybackStatus, PlayerState, Track
 from ym_bridge.mpv_player import MpvPlayer
 from ym_bridge.provider import MusicProvider
 
-
 LOGGER = logging.getLogger(__name__)
 SIGN_SALT = "XGRlBW9FXlekgbPrRHuSiA"
 
@@ -31,7 +30,7 @@ class YandexClientConfig:
     user_agent: str
     autoplay_on_start: bool = False
     accept_language: str = "en"
-    music_client: str = "YandexMusicAndroid/24026072"
+    music_client: str = "YandexMusicAndroid/24026191"
     content_type: str = "adult"
     device_header: str = ""
     endpoint_state: str = ""
@@ -47,10 +46,12 @@ class YandexClientConfig:
     endpoint_account_about: str = "/account/about"
     endpoint_rotor_session_new: str = "/rotor/session/new"
     endpoint_rotor_session_tracks: str = "/rotor/session/{session_id}/tracks"
+    endpoint_rotor_sessions_feedbacks: str = "/rotor/sessions/feedbacks"
     endpoint_likes_tracks_add: str = "/users/{user_id}/likes/tracks/actions/add"
     endpoint_likes_tracks_remove: str = "/users/{user_id}/likes/tracks/actions/remove"
+    endpoint_dislikes_tracks_add: str = "/users/{user_id}/dislikes/tracks/actions/add"
     endpoint_plays: str = "/plays"
-    rotor_seeds: tuple[str, ...] = ("user:onyourwave", "settingDiversity:discover")
+    rotor_seeds: tuple[str, ...] = ("user:onyourwave", "settingDiversity:diverse")
 
 
 class YandexMusicProvider(MusicProvider):
@@ -75,6 +76,7 @@ class YandexMusicProvider(MusicProvider):
         self._session_id = ""
         self._session_batch_id = ""
         self._feedback_from = ""
+        self._context_item = "user:onyourwave"
         self._account_uid: int | None = None
         self._play_id = ""
         self._play_start_timestamp = ""
@@ -103,8 +105,7 @@ class YandexMusicProvider(MusicProvider):
             if finished_item and next_item:
                 await self._send_finish_and_start_feedback(
                     finished_track_id=str(finished_item.get("id", "")).strip(),
-                    finished_track_length_seconds=float(finished_item.get("durationMs", 0) or 0)
-                    / 1000.0,
+                    finished_track_length_seconds=float(finished_item.get("durationMs", 0) or 0) / 1000.0,
                     started_track_id=str(next_item.get("id", "")).strip(),
                     total_played_seconds=played_seconds,
                 )
@@ -185,6 +186,7 @@ class YandexMusicProvider(MusicProvider):
         self._session_id = ""
         self._session_batch_id = ""
         self._feedback_from = ""
+        self._context_item = "user:onyourwave"
         self._play_id = ""
         self._play_start_timestamp = ""
         self._reported_finish_play_id = ""
@@ -203,9 +205,7 @@ class YandexMusicProvider(MusicProvider):
         track_id = str(item.get("id", ""))
         queue_ref = self._track_queue_ref(item)
         if not track_id or not queue_ref:
-            raise ReverseEngineeringRequiredError(
-                "Current track is missing ids required for like action"
-            )
+            raise ReverseEngineeringRequiredError("Current track is missing ids required for like action")
 
         uid = await self._ensure_account_uid()
         timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
@@ -239,13 +239,17 @@ class YandexMusicProvider(MusicProvider):
             raise ReverseEngineeringRequiredError("No current track to dislike")
 
         track_id = str(item.get("id", "")).strip()
+        queue_ref = self._track_queue_ref(item)
         if not track_id:
-            raise ReverseEngineeringRequiredError(
-                "Current track is missing id required for dislike action"
-            )
+            raise ReverseEngineeringRequiredError("Current track is missing id required for dislike action")
+        if not queue_ref:
+            raise ReverseEngineeringRequiredError("Current track is missing album id required for dislike action")
 
         uid = await self._ensure_account_uid()
         timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
+        runtime = await self._player.state()
+        played_seconds = float(runtime.get("time-pos", 0.0) or 0.0)
+
         remove_endpoint = self._config.endpoint_likes_tracks_remove.format(user_id=uid)
         await self._request_json(
             "POST",
@@ -260,12 +264,43 @@ class YandexMusicProvider(MusicProvider):
             },
         )
 
+        dislikes_endpoint = self._config.endpoint_dislikes_tracks_add.format(user_id=uid)
+        await self._request_json(
+            "POST",
+            dislikes_endpoint,
+            json={
+                "tracks": [
+                    {
+                        "clientTimestamp": timestamp,
+                        "trackId": queue_ref,
+                    }
+                ]
+            },
+        )
+
+        self._set_current_liked(False)
+        await self._report_play_event(
+            track_data=item,
+            played_seconds=played_seconds,
+            change_reason="dislike",
+        )
+
+        next_item = self._peek_item(1)
+        await self._advance(1)
+        started_track_id = self._current_track().track_id
+        if len(self._sequence) > 1 and next_item and started_track_id:
+            await self._send_dislike_and_start_feedback(
+                disliked_track_id=track_id,
+                started_track_id=started_track_id,
+                total_played_seconds=played_seconds,
+            )
+            return
+
         await self._send_rotor_feedback(
             track_id=track_id,
             timestamp=timestamp,
-            event_type="unlike",
+            event_type="dislike",
         )
-        self._set_current_liked(False)
 
     async def fetch_account_about(self) -> dict[str, Any]:
         payload = await self._request_json("GET", self._config.endpoint_account_about)
@@ -283,9 +318,7 @@ class YandexMusicProvider(MusicProvider):
             "interactive": True,
             "seeds": list(self._rotor_seeds),
         }
-        data = await self._request_json(
-            "POST", self._config.endpoint_rotor_session_new, json=payload
-        )
+        data = await self._request_json("POST", self._config.endpoint_rotor_session_new, json=payload)
         result = data.get("result", {})
         self._session_id = str(result.get("radioSessionId", ""))
         self._session_batch_id = str(result.get("batchId", ""))
@@ -294,6 +327,9 @@ class YandexMusicProvider(MusicProvider):
             from_id = str(wave.get("idForFrom", "")).strip()
             if from_id:
                 self._feedback_from = f"radio-mobile-{from_id}-default"
+            station_id = str(wave.get("stationId", "")).strip()
+            if station_id:
+                self._context_item = station_id
         sequence = result.get("sequence", [])
         if not isinstance(sequence, list) or not sequence:
             raise ReverseEngineeringRequiredError("Rotor session returned empty sequence")
@@ -310,6 +346,13 @@ class YandexMusicProvider(MusicProvider):
         previous_item = self._current_item()
         runtime = await self._player.state()
         played_seconds = float(runtime.get("time-pos", 0.0) or 0.0)
+
+        if send_skip_feedback and previous_item:
+            await self._report_play_event(
+                track_data=previous_item,
+                played_seconds=played_seconds,
+                change_reason="skip",
+            )
 
         self._index = (self._index + delta) % len(self._sequence)
 
@@ -414,18 +457,13 @@ class YandexMusicProvider(MusicProvider):
         account = await self.fetch_account_about()
         uid = account.get("uid")
         if not isinstance(uid, int):
-            raise ReverseEngineeringRequiredError(
-                "Could not resolve account uid for likes endpoint"
-            )
+            raise ReverseEngineeringRequiredError("Could not resolve account uid for likes endpoint")
         self._account_uid = uid
         return uid
 
     async def _send_rotor_feedback(self, *, track_id: str, timestamp: str, event_type: str) -> None:
         if not self._session_id:
             return
-        feedback_endpoint = self._config.endpoint_rotor_session_tracks.format(
-            session_id=self._session_id
-        )
         feedback_payload = {
             "feedbacks": [
                 {
@@ -440,7 +478,7 @@ class YandexMusicProvider(MusicProvider):
             ],
             "queue": self._queue_refs(limit=2),
         }
-        response = await self._request_json("POST", feedback_endpoint, json=feedback_payload)
+        response = await self._post_rotor_feedback(feedback_payload)
         self._append_sequence_from_feedback(response)
 
     async def _send_finish_and_start_feedback(
@@ -454,9 +492,6 @@ class YandexMusicProvider(MusicProvider):
         if not self._session_id or not finished_track_id or not started_track_id:
             return
 
-        feedback_endpoint = self._config.endpoint_rotor_session_tracks.format(
-            session_id=self._session_id
-        )
         timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
         batch_id = self._session_batch_id or f"{uuid.uuid4()}.local"
         feedback_payload = {
@@ -484,7 +519,7 @@ class YandexMusicProvider(MusicProvider):
             ],
             "queue": self._queue_refs(limit=2, start_offset=1),
         }
-        response = await self._request_json("POST", feedback_endpoint, json=feedback_payload)
+        response = await self._post_rotor_feedback(feedback_payload)
         self._append_sequence_from_feedback(response)
 
     async def _send_skip_and_start_feedback(
@@ -497,9 +532,6 @@ class YandexMusicProvider(MusicProvider):
         if not self._session_id:
             return
 
-        feedback_endpoint = self._config.endpoint_rotor_session_tracks.format(
-            session_id=self._session_id
-        )
         timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
         feedback_payload = {
             "feedbacks": [
@@ -525,8 +557,77 @@ class YandexMusicProvider(MusicProvider):
             ],
             "queue": self._queue_refs(limit=1),
         }
-        response = await self._request_json("POST", feedback_endpoint, json=feedback_payload)
+        response = await self._post_rotor_feedback(feedback_payload)
         self._append_sequence_from_feedback(response)
+
+    async def _send_dislike_and_start_feedback(
+        self,
+        *,
+        disliked_track_id: str,
+        started_track_id: str,
+        total_played_seconds: float,
+    ) -> None:
+        if not self._session_id:
+            return
+
+        timestamp = datetime.now().astimezone().isoformat(timespec="milliseconds")
+        feedback_payload = {
+            "feedbacks": [
+                {
+                    "batchId": f"{uuid.uuid4()}.local",
+                    "event": {
+                        "timestamp": timestamp,
+                        "trackId": started_track_id,
+                        "type": "trackStarted",
+                    },
+                    "from": self._feedback_from or "radio-mobile-user-onyourwave-default",
+                },
+                {
+                    "batchId": self._session_batch_id or f"{uuid.uuid4()}.local",
+                    "event": {
+                        "timestamp": timestamp,
+                        "totalPlayedSeconds": round(max(total_played_seconds, 0.0), 3),
+                        "trackId": disliked_track_id,
+                        "type": "dislike",
+                    },
+                    "from": self._feedback_from or "radio-mobile-user-onyourwave-default",
+                },
+            ],
+            "queue": self._queue_refs(limit=1),
+        }
+        response = await self._post_rotor_feedback(feedback_payload)
+        self._append_sequence_from_feedback(response)
+
+    async def _post_rotor_feedback(self, feedback_payload: dict[str, Any]) -> dict[str, Any]:
+        feedback_endpoint = self._config.endpoint_rotor_session_tracks.format(session_id=self._session_id)
+        try:
+            return await self._request_json("POST", feedback_endpoint, json=feedback_payload)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning(
+                "session feedback failed, falling back to sessions feedback endpoint: %s",
+                exc,
+            )
+
+        if not self._config.endpoint_rotor_sessions_feedbacks:
+            return {}
+
+        fallback_payload = {
+            "sessions": [
+                {
+                    "sessionId": self._session_id,
+                    "feedbacks": feedback_payload.get("feedbacks", []),
+                }
+            ]
+        }
+        try:
+            return await self._request_json(
+                "POST",
+                self._config.endpoint_rotor_sessions_feedbacks,
+                json=fallback_payload,
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("sessions feedback fallback failed")
+            return {}
 
     async def _report_play_finished_if_needed(self, played_seconds: float) -> None:
         if not self._play_id or self._play_id == self._reported_finish_play_id:
@@ -536,17 +637,36 @@ class YandexMusicProvider(MusicProvider):
         if not current_item:
             return
 
-        track_id = str(current_item.get("id", "")).strip()
+        await self._report_play_event(
+            track_data=current_item,
+            played_seconds=played_seconds,
+            change_reason="finish",
+        )
+
+    async def _report_play_event(
+        self,
+        *,
+        track_data: dict[str, Any],
+        played_seconds: float,
+        change_reason: str,
+    ) -> None:
+        if not self._play_id or self._play_id == self._reported_finish_play_id:
+            return
+
+        track_id = str(track_data.get("id", "")).strip()
         if not track_id:
             return
 
         album_id = ""
-        albums = current_item.get("albums", [])
+        albums = track_data.get("albums", [])
         if isinstance(albums, list) and albums and isinstance(albums[0], dict):
             album_id = str(albums[0].get("id", ""))
 
-        track_length_seconds = float(current_item.get("durationMs", 0) or 0) / 1000.0
-        ended_seconds = round(max(played_seconds, track_length_seconds), 3)
+        track_length_seconds = float(track_data.get("durationMs", 0) or 0) / 1000.0
+        if change_reason == "finish":
+            ended_seconds = round(max(played_seconds, track_length_seconds), 3)
+        else:
+            ended_seconds = round(max(played_seconds, 0.0), 3)
         now_iso = datetime.now().astimezone().isoformat(timespec="milliseconds")
 
         payload = {
@@ -558,9 +678,9 @@ class YandexMusicProvider(MusicProvider):
                     "audioOutputType": "other",
                     "isFromAutoflow": False,
                     "batchId": self._session_batch_id or f"{uuid.uuid4()}.local",
-                    "changeReason": "finish",
+                    "changeReason": change_reason,
                     "context": "radio",
-                    "contextItem": "user:onyourwave",
+                    "contextItem": self._context_item,
                     "isRestored": False,
                     "endPositionSeconds": ended_seconds,
                     "expectedTrackLengthSeconds": round(track_length_seconds, 3),
@@ -660,9 +780,7 @@ class YandexMusicProvider(MusicProvider):
         if chosen is None:
             chosen = result[0]
         if not isinstance(chosen, dict):
-            raise ReverseEngineeringRequiredError(
-                f"Unexpected download info shape for track {track_id}"
-            )
+            raise ReverseEngineeringRequiredError(f"Unexpected download info shape for track {track_id}")
 
         download_info_url = str(chosen.get("downloadInfoUrl", ""))
         if not download_info_url:
@@ -703,9 +821,7 @@ class YandexMusicProvider(MusicProvider):
             json=json,
             headers={
                 "X-Request-Id": str(uuid.uuid4()),
-                "X-Yandex-Music-Client-Now": datetime.now()
-                .astimezone()
-                .isoformat(timespec="seconds"),
+                "X-Yandex-Music-Client-Now": datetime.now().astimezone().isoformat(timespec="seconds"),
             },
         )
         response.raise_for_status()

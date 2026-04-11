@@ -14,7 +14,6 @@ from ym_bridge.ipc import BridgeIpcServer, send_ipc
 from ym_bridge.mpris import BridgeMprisService
 from ym_bridge.yandex import YandexClientConfig, YandexMusicProvider, run_recon
 
-
 ACTIVITY_MAP = {
     "wake-up": "activity:wake-up",
     "road-trip": "activity:road-trip",
@@ -23,13 +22,18 @@ ACTIVITY_MAP = {
     "fall-asleep": "activity:fall-asleep",
 }
 
+DIVERSITY_MAP = {
+    "discover": "diverse",
+}
+
 
 def _build_vibe_seeds(args: argparse.Namespace) -> list[str]:
     seeds: list[str] = []
     if args.activity:
         seeds.append(ACTIVITY_MAP.get(args.activity, f"activity:{args.activity}"))
     if args.diversity:
-        seeds.append(f"settingDiversity:{args.diversity}")
+        diversity = DIVERSITY_MAP.get(args.diversity, args.diversity)
+        seeds.append(f"settingDiversity:{diversity}")
     if args.mood:
         seeds.append(f"settingMoodEnergy:{args.mood}")
     if args.language:
@@ -63,8 +67,10 @@ def build_client_config(config: AppConfig) -> YandexClientConfig:
         endpoint_account_about=config.endpoint_account_about,
         endpoint_rotor_session_new=config.endpoint_rotor_session_new,
         endpoint_rotor_session_tracks=config.endpoint_rotor_session_tracks,
+        endpoint_rotor_sessions_feedbacks=config.endpoint_rotor_sessions_feedbacks,
         endpoint_likes_tracks_add=config.endpoint_likes_tracks_add,
         endpoint_likes_tracks_remove=config.endpoint_likes_tracks_remove,
+        endpoint_dislikes_tracks_add=config.endpoint_dislikes_tracks_add,
         endpoint_plays=config.endpoint_plays,
         rotor_seeds=config.rotor_seeds,
     )
@@ -72,18 +78,14 @@ def build_client_config(config: AppConfig) -> YandexClientConfig:
 
 async def run_daemon(config: AppConfig) -> None:
     provider = YandexMusicProvider(build_client_config(config))
-    controller = BridgeController(
-        provider=provider, poll_interval_seconds=config.poll_interval_seconds
-    )
+    controller = BridgeController(provider=provider, poll_interval_seconds=config.poll_interval_seconds)
     mpris = BridgeMprisService(controller=controller, mpris_name=config.mpris_name)
     ipc = BridgeIpcServer(controller=controller, socket_path=config.control_socket_path)
 
     await mpris.start()
     await ipc.start()
     await controller.start()
-    logging.getLogger(__name__).info(
-        "Bridge started as org.mpris.MediaPlayer2.%s", config.mpris_name
-    )
+    logging.getLogger(__name__).info("Bridge started as org.mpris.MediaPlayer2.%s", config.mpris_name)
 
     try:
         await asyncio.Event().wait()
@@ -107,13 +109,10 @@ async def run_recon_command(config: AppConfig) -> None:
     )
     for result in results:
         if result.error:
-            print(
-                f"{result.method:4} {result.path:26} -> ERR [{result.error}] {result.output_file}"
-            )
+            print(f"{result.method:4} {result.path:26} -> ERR [{result.error}] {result.output_file}")
             continue
         print(
-            f"{result.method:4} {result.path:26} -> {result.status_code:3} "
-            f"[{result.content_type}] {result.output_file}"
+            f"{result.method:4} {result.path:26} -> {result.status_code:3} [{result.content_type}] {result.output_file}"
         )
 
 
@@ -194,7 +193,7 @@ async def run_vibe_tui(config: AppConfig) -> None:
     activity = input("Activity [wake-up|road-trip|work-background|workout|fall-asleep]: ").strip()
     if activity.lower() == "q":
         return
-    diversity = input("Character [favorite|discover|popular|default]: ").strip()
+    diversity = input("Character [favorite|diverse|discover|popular|default]: ").strip()
     if diversity.lower() == "q":
         return
     mood = input("Mood [active|fun|calm|sad|all]: ").strip()
@@ -211,7 +210,8 @@ async def run_vibe_tui(config: AppConfig) -> None:
     if activity:
         seeds.append(ACTIVITY_MAP.get(activity, f"activity:{activity}"))
     if diversity:
-        seeds.append(f"settingDiversity:{diversity}")
+        diversity_value = DIVERSITY_MAP.get(diversity, diversity)
+        seeds.append(f"settingDiversity:{diversity_value}")
     if mood:
         seeds.append(f"settingMoodEnergy:{mood}")
     if language:
@@ -252,12 +252,8 @@ async def run_waybar_command(config: AppConfig) -> None:
     liked_icon = " ♥" if liked else ""
     artist = str(track.get("artist", "")).strip()
     title = str(track.get("title", "")).strip() or "No track"
-    full_text = (
-        f"{icon} {artist} - {title}{liked_icon}" if artist else f"{icon} {title}{liked_icon}"
-    )
-    text = _compact_waybar_text(
-        full_text, max_length=config.waybar_max_length, scroll=config.waybar_scroll
-    )
+    full_text = f"{icon} {artist} - {title}{liked_icon}" if artist else f"{icon} {title}{liked_icon}"
+    text = _compact_waybar_text(full_text, max_length=config.waybar_max_length, scroll=config.waybar_scroll)
     seeds = vibe.get("seeds", [])
     vibe_line = ", ".join(str(seed) for seed in seeds) if isinstance(seeds, list) else ""
     tooltip = (

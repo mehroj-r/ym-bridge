@@ -24,7 +24,7 @@
 ## Tagging
 
 - Create annotated tag:
-  - `git tag -a v0.1.0 -m "ym-bridge v0.1.0"`
+  - `git tag -a v<version> -m "ym-bridge v<version>"`
 - Push branch and tag.
 
 ## Post-release

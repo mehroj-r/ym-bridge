@@ -22,8 +22,8 @@
 ## Feedback Data Flow
 
 - Like/dislike:
-  - library endpoint (`likes/.../add` or `likes/.../remove`)
-  - rotor feedback endpoint (`/rotor/session/{id}/tracks`)
+  - library endpoints (`likes/.../add`, `likes/.../remove`, `dislikes/.../add`)
+  - rotor feedback endpoint (`/rotor/session/{id}/tracks`) with `/rotor/sessions/feedbacks` fallback
 - Next/skip:
   - sends `trackStarted` + `skip` feedback bundle
 - Natural track end:
@@ -44,7 +44,7 @@ Vibe control requests:
 
 ```json
 {"action": "get_vibe"}
-{"action": "set_vibe", "seeds": ["activity:wake-up", "settingDiversity:discover"]}
+{"action": "set_vibe", "seeds": ["activity:wake-up", "settingDiversity:diverse"]}
 ```
 
 Response:

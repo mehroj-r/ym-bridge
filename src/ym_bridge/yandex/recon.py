@@ -20,13 +20,44 @@ class ProbeResult:
     error: str = ""
 
 
-DEFAULT_PROBES: tuple[tuple[str, str, dict[str, Any] | None], ...] = (
-    ("GET", "/account/status", None),
-    ("GET", "/account/about", None),
-    ("GET", "/queues", None),
-    ("POST", "/queues", None),
-    ("GET", "/rotor/account/status", None),
-    ("GET", "/landing3", None),
+@dataclass(slots=True)
+class ProbeSpec:
+    method: str
+    path: str
+    body: dict[str, Any] | None = None
+    query: dict[str, str] | None = None
+
+
+DEFAULT_PROBES: tuple[ProbeSpec, ...] = (
+    ProbeSpec("GET", "/account/about"),
+    ProbeSpec("GET", "/account/settings"),
+    ProbeSpec("GET", "/disclaimers"),
+    ProbeSpec("GET", "/rotor/wave/last"),
+    ProbeSpec("GET", "/rotor/wave/settings", query={"seeds": "user:onyourwave"}),
+    ProbeSpec(
+        "POST",
+        "/rotor/session/new",
+        body={
+            "includeTracksInResponse": True,
+            "includeWaveModel": True,
+            "interactive": True,
+            "seeds": ["user:onyourwave"],
+            "sessions": [],
+        },
+    ),
+    ProbeSpec(
+        "POST",
+        "/collection/sync",
+        body={
+            "likedTracks": {"allValuesRequired": False, "revision": 0},
+            "likedAlbums": {"allValuesRequired": False, "revision": 0},
+            "likedArtists": {"allValuesRequired": False, "revision": 0},
+            "likedPlaylists": {"playlists": []},
+            "ownPlaylists": {"playlists": []},
+            "presavedAlbums": {},
+            "likedClips": {"allValuesRequired": False, "revision": 0},
+        },
+    ),
 )
 
 
@@ -57,29 +88,34 @@ async def run_recon(
         headers["Authorization"] = f"OAuth {oauth_token}"
 
     async with httpx.AsyncClient(base_url=base_url, headers=headers, timeout=20) as http:
-        params = {"device-id": device_id} if device_id else None
-        for method, path, body in DEFAULT_PROBES:
+        for probe in DEFAULT_PROBES:
+            method = probe.method
+            path = probe.path
+            body = probe.body
+
+            params: dict[str, str] = {}
+            if device_id:
+                params["device-id"] = device_id
+            if probe.query:
+                params.update(probe.query)
+
             stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-            out_file = (
-                output_dir / f"{stamp}_{method}_{path.strip('/').replace('/', '_') or 'root'}.json"
-            )
+            out_file = output_dir / f"{stamp}_{method}_{path.strip('/').replace('/', '_') or 'root'}.json"
             try:
                 response = await http.request(
                     method,
                     path,
-                    params=params,
+                    params=params or None,
                     json=body,
                     headers={
                         "X-Request-Id": str(uuid.uuid4()),
-                        "X-Yandex-Music-Client-Now": datetime.now()
-                        .astimezone()
-                        .isoformat(timespec="seconds"),
+                        "X-Yandex-Music-Client-Now": datetime.now().astimezone().isoformat(timespec="seconds"),
                     },
                 )
                 payload = {
                     "method": method,
                     "path": path,
-                    "query": params,
+                    "query": params or None,
                     "request_json": body,
                     "status_code": response.status_code,
                     "headers": dict(response.headers),
@@ -96,7 +132,7 @@ async def run_recon(
                 payload = {
                     "method": method,
                     "path": path,
-                    "query": params,
+                    "query": params or None,
                     "request_json": body,
                     "error": repr(exc),
                 }

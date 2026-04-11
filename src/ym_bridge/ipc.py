@@ -32,7 +32,9 @@ class BridgeIpcServer:
         self._socket_path.unlink(missing_ok=True)
 
     async def _handle_client(
-        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+        self,
+        reader: asyncio.StreamReader,
+        writer: asyncio.StreamWriter,
     ) -> None:
         try:
             line = await reader.readline()
@@ -85,13 +87,21 @@ class BridgeIpcServer:
             return {"ok": True, "state": self._state_payload()}
         if action == "like":
             if self._feedback_rate_limited():
-                return {"ok": True, "skipped": "rate_limited", "state": self._state_payload()}
+                return {
+                    "ok": True,
+                    "skipped": "rate_limited",
+                    "state": self._state_payload(),
+                }
             await self._controller.like_current()
             await self._controller.refresh_state()
             return {"ok": True, "state": self._state_payload()}
         if action == "dislike":
             if self._feedback_rate_limited():
-                return {"ok": True, "skipped": "rate_limited", "state": self._state_payload()}
+                return {
+                    "ok": True,
+                    "skipped": "rate_limited",
+                    "state": self._state_payload(),
+                }
             await self._controller.dislike_current()
             await self._controller.refresh_state()
             return {"ok": True, "state": self._state_payload()}

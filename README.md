@@ -2,7 +2,7 @@
 
 `ym-bridge` is a standalone Linux daemon that bridges Yandex Music to native desktop media controls.
 
-Release: `v0.1.0`
+Release: `v0.2.0`
 
 It exposes an MPRIS player on D-Bus (`org.mpris.MediaPlayer2.ymbridge`), so it works with:
 
@@ -76,17 +76,19 @@ base_url = "https://api.music.yandex.net"
 oauth_token = ""
 device_id = ""
 accept_language = "en"
-music_client = "YandexMusicAndroid/24026072"
+music_client = "YandexMusicAndroid/24026191"
 content_type = "adult"
 device_header = ""
-rotor_seeds = ["user:onyourwave", "settingDiversity:discover"]
+rotor_seeds = ["user:onyourwave", "settingDiversity:diverse"]
 
 [yandex.endpoints]
 account_about = "/account/about"
 rotor_session_new = "/rotor/session/new"
 rotor_session_tracks = "/rotor/session/{session_id}/tracks"
+rotor_sessions_feedbacks = "/rotor/sessions/feedbacks"
 likes_tracks_add = "/users/{user_id}/likes/tracks/actions/add"
 likes_tracks_remove = "/users/{user_id}/likes/tracks/actions/remove"
+dislikes_tracks_add = "/users/{user_id}/dislikes/tracks/actions/add"
 plays = "/plays"
 
 [recon]
@@ -115,7 +117,7 @@ export YM_DEVICE_ID="..."
 Examples:
 
 ```bash
-ym-bridge vibe --activity wake-up --diversity discover --mood calm --language any
+ym-bridge vibe --activity wake-up --diversity diverse --mood calm --language any
 ym-bridge vibe-tui
 ```
 

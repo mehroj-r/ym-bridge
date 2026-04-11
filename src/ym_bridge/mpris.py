@@ -10,7 +10,6 @@ from dbus_next.service import ServiceInterface, dbus_property, method, signal
 from ym_bridge.controller import BridgeController
 from ym_bridge.models import PlayerState
 
-
 OBJECT_PATH = "/org/mpris/MediaPlayer2"
 
 

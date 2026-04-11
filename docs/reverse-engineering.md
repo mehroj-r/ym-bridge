@@ -39,8 +39,10 @@ Known useful endpoint:
 - `POST /rotor/session/new` returns playable sequence entries for radio playback.
 - `POST /users/{uid}/likes/tracks/actions/add` applies library like for track.
 - `POST /users/{uid}/likes/tracks/actions/remove` removes library like for track.
+- `POST /users/{uid}/dislikes/tracks/actions/add` applies explicit dislike for track.
 - `POST /rotor/session/{sessionId}/tracks` sends radio feedback events and returns sequence updates.
-- `POST /plays` reports completed playback (`changeReason=finish`, `listenActivity=END`).
+- `POST /rotor/sessions/feedbacks` accepts batched feedback fallback payloads.
+- `POST /plays` reports playback transitions (`changeReason` seen as `skip`, `dislike`, `other_track`, `in_progress`, `finish`).
 
 ## Data model mapping to MPRIS
 

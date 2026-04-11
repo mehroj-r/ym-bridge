@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     vibe.add_argument("--activity", help="Activity seed tag, e.g. wake-up")
     vibe.add_argument(
         "--diversity",
-        choices=["favorite", "discover", "popular", "default"],
+        choices=["favorite", "discover", "diverse", "popular", "default"],
         help="Character profile",
     )
     vibe.add_argument(

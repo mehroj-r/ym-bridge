@@ -7,7 +7,6 @@ import logging
 from ym_bridge.models import PlayerState
 from ym_bridge.provider import MusicProvider
 
-
 StateListener = Callable[[PlayerState], Awaitable[None]]
 LOGGER = logging.getLogger(__name__)
 
@@ -90,8 +89,8 @@ class BridgeController:
                 updated = await self._provider.fetch_state()
                 self._state = updated
                 await self._emit_state(updated)
-            except Exception:
-                LOGGER.exception("Failed to sync provider state")
+            except Exception as e:
+                LOGGER.exception("Failed to sync provider state", exc_info=e)
             finally:
                 try:
                     await asyncio.wait_for(self._stopped.wait(), timeout=self._poll_interval)
@@ -101,6 +100,4 @@ class BridgeController:
     async def _emit_state(self, state: PlayerState) -> None:
         if not self._listeners:
             return
-        await asyncio.gather(
-            *(listener(state) for listener in self._listeners), return_exceptions=True
-        )
+        await asyncio.gather(*(listener(state) for listener in self._listeners), return_exceptions=True)

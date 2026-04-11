@@ -6,7 +6,6 @@ from pathlib import Path
 import tomllib
 import uuid
 
-
 DEFAULT_CONFIG_PATH = Path.home() / ".config" / "ym-bridge" / "config.toml"
 
 
@@ -35,12 +34,14 @@ class AppConfig:
     endpoint_account_about: str = "/account/about"
     endpoint_rotor_session_new: str = "/rotor/session/new"
     endpoint_rotor_session_tracks: str = "/rotor/session/{session_id}/tracks"
+    endpoint_rotor_sessions_feedbacks: str = "/rotor/sessions/feedbacks"
     endpoint_likes_tracks_add: str = "/users/{user_id}/likes/tracks/actions/add"
     endpoint_likes_tracks_remove: str = "/users/{user_id}/likes/tracks/actions/remove"
+    endpoint_dislikes_tracks_add: str = "/users/{user_id}/dislikes/tracks/actions/add"
     endpoint_plays: str = "/plays"
-    rotor_seeds: tuple[str, ...] = ("user:onyourwave", "settingDiversity:discover")
+    rotor_seeds: tuple[str, ...] = ("user:onyourwave", "settingDiversity:diverse")
     accept_language: str = "en"
-    music_client: str = "YandexMusicAndroid/24026072"
+    music_client: str = "YandexMusicAndroid/24026191"
     content_type: str = "adult"
     device_header: str = ""
     recon_output_dir: Path = Path("./artifacts/recon")
@@ -88,22 +89,21 @@ def load_config(path: Path | None = None) -> AppConfig:
         endpoint_volume=str(endpoints.get("volume", "")),
         endpoint_account_about=str(endpoints.get("account_about", "/account/about")),
         endpoint_rotor_session_new=str(endpoints.get("rotor_session_new", "/rotor/session/new")),
-        endpoint_rotor_session_tracks=str(
-            endpoints.get("rotor_session_tracks", "/rotor/session/{session_id}/tracks")
-        ),
-        endpoint_likes_tracks_add=str(
-            endpoints.get("likes_tracks_add", "/users/{user_id}/likes/tracks/actions/add")
-        ),
+        endpoint_rotor_session_tracks=str(endpoints.get("rotor_session_tracks", "/rotor/session/{session_id}/tracks")),
+        endpoint_rotor_sessions_feedbacks=str(endpoints.get("rotor_sessions_feedbacks", "/rotor/sessions/feedbacks")),
+        endpoint_likes_tracks_add=str(endpoints.get("likes_tracks_add", "/users/{user_id}/likes/tracks/actions/add")),
         endpoint_likes_tracks_remove=str(
             endpoints.get("likes_tracks_remove", "/users/{user_id}/likes/tracks/actions/remove")
         ),
+        endpoint_dislikes_tracks_add=str(
+            endpoints.get("dislikes_tracks_add", "/users/{user_id}/dislikes/tracks/actions/add")
+        ),
         endpoint_plays=str(endpoints.get("plays", "/plays")),
         rotor_seeds=tuple(
-            str(item)
-            for item in yandex.get("rotor_seeds", ["user:onyourwave", "settingDiversity:discover"])
+            str(item) for item in yandex.get("rotor_seeds", ["user:onyourwave", "settingDiversity:diverse"])
         ),
         accept_language=str(yandex.get("accept_language", "en")),
-        music_client=str(yandex.get("music_client", "YandexMusicAndroid/24026072")),
+        music_client=str(yandex.get("music_client", "YandexMusicAndroid/24026191")),
         content_type=str(yandex.get("content_type", "adult")),
         device_header=device_header,
         recon_output_dir=Path(str(recon.get("output_dir", "./artifacts/recon"))),
